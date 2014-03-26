@@ -67,11 +67,8 @@ class OAuthProvider implements AuthenticationProviderInterface
      */
     public function authenticate(TokenInterface $token)
     {
-        /* @var OAuthToken $token */
         $resourceOwner = $this->resourceOwnerMap->getResourceOwnerByName($token->getResourceOwnerName());
-
         $userResponse = $resourceOwner->getUserInformation($token->getRawToken());
-
         try {
             $user = $this->userProvider->loadUserByOAuthUserResponse($userResponse);
         } catch (OAuthAwareExceptionInterface $e) {
@@ -81,13 +78,19 @@ class OAuthProvider implements AuthenticationProviderInterface
             throw $e;
         }
 
-        $token = new OAuthToken($token->getRawToken(), $user->getRoles());
-        $token->setResourceOwnerName($resourceOwner->getName());
-        $token->setUser($user);
-        $token->setAuthenticated(true);
+        /* Persist-less authentication */
+        if($user->getId()===NULL){
+            $token = new OAuthToken($token->getRawToken(), $user->getRoles());        
+            $token->setResourceOwnerName($resourceOwner->getName());
+        }else{
+            $token = new OAuthToken($token->getRawToken(), $user->getRoles());
+            $token->setResourceOwnerName($resourceOwner->getName());
+            $token->setUser($user);
+            $token->setAuthenticated(true);
 
-        $this->userChecker->checkPostAuth($user);
-
+            $this->userChecker->checkPostAuth($user);
+        }
+        
         return $token;
     }
 }
