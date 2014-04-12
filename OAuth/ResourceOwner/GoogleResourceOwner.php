@@ -12,6 +12,7 @@
 namespace HWI\Bundle\OAuthBundle\OAuth\ResourceOwner;
 
 use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use HWI\Bundle\OAuthBundle\Security\Core\Authentication\Token\OAuthToken;
 
 /**
  * GoogleResourceOwner
@@ -74,6 +75,7 @@ class GoogleResourceOwner extends GenericOAuth2ResourceOwner
             'access_token_url'        => 'https://accounts.google.com/o/oauth2/token',
             'revoke_token_url'        => 'https://accounts.google.com/o/oauth2/revoke',
             'infos_url'               => 'https://www.googleapis.com/oauth2/v1/userinfo',
+            'infos_url_plus'               =>'https://www.googleapis.com/plus/v1/people/',
 
             'scope'                   => 'https://www.googleapis.com/auth/userinfo.profile',
 
@@ -97,5 +99,33 @@ class GoogleResourceOwner extends GenericOAuth2ResourceOwner
             'login_hint'      => array('email address', 'sub'),
             'prompt'          => array(null, 'consent', 'select_account'),
         ));
+    }
+    
+    /**
+     * {@inheritDoc}
+     * Custom birthday retrieving
+     */
+    public function getUserInformation(array $accessToken, array $extraParameters = array())
+    {
+        $url = $this->normalizeUrl($this->options['infos_url'], array(
+            'access_token' => $accessToken['access_token']
+        ));
+        $content = $this->doGetUserInformationRequest($url)->getContent();
+        $contentArray = json_decode($content, true);
+        $url = $this->normalizeUrl($this->options['infos_url_plus'].$contentArray['id'], array(
+            'access_token' => $accessToken['access_token']
+        ));
+        $contentPlus = $this->doGetUserInformationRequest($url)->getContent();
+        $contentPlusArray = json_decode($contentPlus, true);
+        if ( array_key_exists('birthday', $contentPlusArray) )
+        {
+            $contentArray['birthday'] = $contentPlusArray['birthday'];
+        }
+        $content = json_encode($contentArray);
+        $response = $this->getUserResponse();
+        $response->setResponse($content);
+        $response->setResourceOwner($this);
+        $response->setOAuthToken(new OAuthToken($accessToken));
+        return $response;
     }
 }
